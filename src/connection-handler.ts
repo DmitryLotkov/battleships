@@ -33,7 +33,7 @@ export const connectionHandler = (ws: WebSocket): void => {
                 }
 
                 case MESSAGE_TYPES.ADD_SHIPS: {
-                    commandHandler.addShips(message)
+                    commandHandler.addShips(ws, message)
                     break
                 }
 

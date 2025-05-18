@@ -24,7 +24,7 @@ export interface UpdateWinnersRequestBody {
     wins: number
 }
 
-export interface AddUserToRoomRequestBody {
+export interface AddUserToRoomResponseBody {
     indexRoom: number | string,
 }
 
@@ -34,7 +34,7 @@ export interface AddShipsResponseBody {
     indexPlayer: number
 }
 
-export interface StartGameBody {
+export interface StartGameRequestBody {
     ships: Ship[]
     currentPlayerIndex: number | string
 }
@@ -42,4 +42,8 @@ export interface StartGameBody {
 export interface CreateGameRequestBody {
     idGame: string | number
     idPlayer: string | number
+}
+
+export interface TurnRequestBody {
+    currentPlayer: number | string
 }

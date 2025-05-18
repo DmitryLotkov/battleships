@@ -1,10 +1,12 @@
 import {
     RegisterRequestBody,
     MessageBody,
-    AddUserToRoomRequestBody,
+    AddUserToRoomResponseBody,
     RegisterResponseBody,
     UpdateWinnersRequestBody,
-    AddShipsResponseBody, StartGameBody, CreateGameRequestBody
+    AddShipsResponseBody,
+    StartGameRequestBody,
+    CreateGameRequestBody, TurnRequestBody
 } from './models/message-body-models';
 import {MESSAGE_TYPES} from './models/message-enum';
 import {WebSocket} from 'ws';
@@ -83,10 +85,10 @@ export class CommandHandler {
 
     public addUserToRoom(ws: WebSocket, messageBody: MessageBody<string>) {
         try {
-            const parsedData: AddUserToRoomRequestBody = JSON.parse(messageBody.data);
+            const parsedData: AddUserToRoomResponseBody = JSON.parse(messageBody.data);
             const { indexRoom } = parsedData;
 
-            const room = this.rooms.find(r => r.index === indexRoom);
+            const room = this.getRoomById(indexRoom);
             if (!room) {
                 console.warn('Room not found:', indexRoom);
                 return;
@@ -144,13 +146,13 @@ export class CommandHandler {
         })
     }
 
-    public addShips(messageBody: MessageBody<string>) {
+    public addShips(ws: WebSocket, messageBody: MessageBody<string>) {
         try{
             const parsed: AddShipsResponseBody = JSON.parse(messageBody.data);
 
             const { gameId, ships, indexPlayer } = parsed;
 
-            const room = this.rooms.find(r => r.index === gameId);
+            const room = this.getRoomById(gameId);
             if (!room) return;
 
             room.ships = {
@@ -158,10 +160,15 @@ export class CommandHandler {
                 [indexPlayer]: ships
             }
 
+            // Кто первый расставил корабли, тот первый ходит
+            if (room.currentTurnIndex === undefined) {
+                room.currentTurnIndex = indexPlayer;
+            }
+
             const bothReady = room.players.every((player) => room.ships[player.index])
 
             if (bothReady) {
-                this.startGame(room)
+                this.startGame(ws, room)
             }
 
         } catch {
@@ -169,15 +176,47 @@ export class CommandHandler {
         }
     }
 
-    private startGame(room: Room) {
-           room.players.forEach((player) => {
-               const playerShips = room.ships[player.index]
-               const response = createMessage<StartGameBody>(MESSAGE_TYPES.START_GAME, {
-                   ships: playerShips,
-                   currentPlayerIndex: player.index
-               })
+    private startGame(currentWSConnection: WebSocket, currentRoom: Room) {
+        try {
+            const currentPlayerIndex = currentRoom.currentTurnIndex!;
 
-               player.ws.send(JSON.stringify(response));
+            currentRoom.players.forEach((player) => {
+                const playerShips = currentRoom.ships[player.index]
+                const request = createMessage<StartGameRequestBody>(MESSAGE_TYPES.START_GAME, {
+                    ships: playerShips,
+                    currentPlayerIndex: currentPlayerIndex
+                })
+
+                player.ws.send(JSON.stringify(request));
             })
+
+            this.turn(currentWSConnection, currentRoom)
+        } catch (e) {
+            console.log('Error when start the game', e)
+        }
+    }
+
+    private getRoomById(id: number | string): Room | undefined {
+        return this.rooms.find(r => r.index === id);
+    }
+
+    public turn(ws: WebSocket, currentRoom: Room) {
+        const client = this.clients.find(c => c.ws === ws);
+        if (client) {
+            const request = createMessage<TurnRequestBody>(MESSAGE_TYPES.TURN, {
+                currentPlayer: currentRoom.currentTurnIndex!
+            })
+
+            try {
+                currentRoom.players.forEach((player) => {
+                    player.ws.send(JSON.stringify(request))
+                })
+
+            } catch (e) {
+                console.log('Error when set player turn', e)
+            }
+        } else {
+            console.log('Client not found')
+        }
     }
 }
