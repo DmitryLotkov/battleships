@@ -3,9 +3,9 @@ import {MessageBody} from './models/message-types';
 import {MESSAGE_TYPES} from './models/message-enum';
 import {CommandHandler} from "./handlers/command-handler";
 
-export const handleConnection = (ws: WebSocket): void => {
-    const commandHandler = new CommandHandler();
+const commandHandler = new CommandHandler();
 
+export const handleConnection = (ws: WebSocket): void => {
     ws.on('message', (raw: RawData) => {
         try {
             const message: MessageBody<string> = JSON.parse(raw.toString());

@@ -39,14 +39,23 @@ export class CommandHandler {
     }
 
     public updateWinners(ws: WebSocket) {
-        const response: MessageBody<UpdateWinnersRequestBody[]> = createMessage(MESSAGE_TYPES.UPDATE_WINNERS, [
-            {
-                name: this.clients[0].name,
-                wins: 0
-            }
-        ]);
+        const winners = this.clients.map(client => ({
+            name: client.name,
+            wins: client.wins
+        }));
 
-        ws.send(JSON.stringify(response));
+        const message = createMessage(MESSAGE_TYPES.UPDATE_WINNERS, winners);
+        const payload = JSON.stringify(message);
+
+        if (this.clients.length === 1) {
+            ws.send(payload);
+        } else {
+            this.clients.forEach(client => {
+                if (client.ws.readyState === WebSocket.OPEN) {
+                    client.ws.send(payload);
+                }
+            });
+        }
     }
 
     public createRoom(ws: WebSocket, messageBody: MessageBody<string>) {
@@ -83,29 +92,36 @@ export class CommandHandler {
 
             const client = this.clients.find(c => c.ws === ws);
             if (!client) {
-                console.warn('No current client to add to room');
+                console.warn('Client not found');
                 return;
             }
 
-            room.players.push(client);
-            console.log(`Client ${client.name} joined room ${indexRoom}`);
+            const alreadyInRoom = room.players.some(p => p.ws === ws);
+            if (!alreadyInRoom) {
+                room.players.push(client);
+                console.log(`Client ${client.name} joined room ${indexRoom}`);
+            }
 
             this.updateRoom();
 
             if (room.players.length === 2) {
-                console.log('Room full. Creating game...');
-                for (const player of room.players) {
-                    const response = createMessage(MESSAGE_TYPES.CREATE_GAME, {
-                        idGame: room.index,
-                        idPlayer: player.index
-                    });
-                    player.ws.send(JSON.stringify(response));
-                }
+                this.createGame(room);
             }
         } catch (e) {
             console.error('Invalid JSON in addUserToRoom:', messageBody.data);
             console.error(e);
         }
+    }
+
+    private createGame(currRoom: Room): void {
+        console.log('Room full. Creating game...')
+        currRoom.players.forEach((player) => {
+            const response = createMessage(MESSAGE_TYPES.CREATE_GAME, {
+                idGame: currRoom.index,
+                idPlayer: player.index
+            });
+            player.ws.send(JSON.stringify(response));
+        })
     }
 
     public updateRoom() {
