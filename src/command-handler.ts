@@ -2,13 +2,14 @@ import {
     RegisterRequestBody,
     MessageBody,
     AddUserToRoomRequestBody,
+    RegisterResponseBody,
     UpdateWinnersRequestBody,
-    RegisterResponseBody
-} from '../models/message-types';
-import { MESSAGE_TYPES } from '../models/message-enum';
-import { WebSocket } from 'ws';
-import { Client, Room } from '../models/client-model';
-import { createMessage } from '../utils/create-message';
+    AddShipsResponseBody, StartGameBody, CreateGameRequestBody
+} from './models/message-body-models';
+import {MESSAGE_TYPES} from './models/message-enum';
+import {WebSocket} from 'ws';
+import {Client, Room} from './models/database-models';
+import {createMessage} from './utils/create-message';
 
 export class CommandHandler {
     private clients: Client[] = [];
@@ -39,12 +40,12 @@ export class CommandHandler {
     }
 
     public updateWinners(ws: WebSocket) {
-        const winners = this.clients.map(client => ({
+        const winners:UpdateWinnersRequestBody[] = this.clients.map(client => ({
             name: client.name,
             wins: client.wins
         }));
 
-        const message = createMessage(MESSAGE_TYPES.UPDATE_WINNERS, winners);
+        const message = createMessage<UpdateWinnersRequestBody[]>(MESSAGE_TYPES.UPDATE_WINNERS, winners);
         const payload = JSON.stringify(message);
 
         if (this.clients.length === 1) {
@@ -69,7 +70,8 @@ export class CommandHandler {
 
             const room: Room = {
                 index: ++this.roomIndex,
-                players: [client]
+                players: [client],
+                ships: {}
             };
 
             this.rooms.push(room);
@@ -116,7 +118,7 @@ export class CommandHandler {
     private createGame(currRoom: Room): void {
         console.log('Room full. Creating game...')
         currRoom.players.forEach((player) => {
-            const response = createMessage(MESSAGE_TYPES.CREATE_GAME, {
+            const response = createMessage<CreateGameRequestBody>(MESSAGE_TYPES.CREATE_GAME, {
                 idGame: currRoom.index,
                 idPlayer: player.index
             });
@@ -140,5 +142,42 @@ export class CommandHandler {
         this.clients.forEach((client) => {
             client.ws.send(JSON.stringify(message));
         })
+    }
+
+    public addShips(messageBody: MessageBody<string>) {
+        try{
+            const parsed: AddShipsResponseBody = JSON.parse(messageBody.data);
+
+            const { gameId, ships, indexPlayer } = parsed;
+
+            const room = this.rooms.find(r => r.index === gameId);
+            if (!room) return;
+
+            room.ships = {
+                ...room.ships,
+                [indexPlayer]: ships
+            }
+
+            const bothReady = room.players.every((player) => room.ships[player.index])
+
+            if (bothReady) {
+                this.startGame(room)
+            }
+
+        } catch {
+            console.error(messageBody.data);
+        }
+    }
+
+    private startGame(room: Room) {
+           room.players.forEach((player) => {
+               const playerShips = room.ships[player.index]
+               const response = createMessage<StartGameBody>(MESSAGE_TYPES.START_GAME, {
+                   ships: playerShips,
+                   currentPlayerIndex: player.index
+               })
+
+               player.ws.send(JSON.stringify(response));
+            })
     }
 }

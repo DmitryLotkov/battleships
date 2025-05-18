@@ -1,4 +1,5 @@
 import {MESSAGE_TYPES} from "./message-enum";
+import { Ship} from "./database-models";
 
 export interface MessageBody <T> {
     type: MESSAGE_TYPES
@@ -25,4 +26,20 @@ export interface UpdateWinnersRequestBody {
 
 export interface AddUserToRoomRequestBody {
     indexRoom: number | string,
+}
+
+export interface AddShipsResponseBody {
+    gameId: number
+    ships: Ship[]
+    indexPlayer: number
+}
+
+export interface StartGameBody {
+    ships: Ship[]
+    currentPlayerIndex: number | string
+}
+
+export interface CreateGameRequestBody {
+    idGame: string | number
+    idPlayer: string | number
 }

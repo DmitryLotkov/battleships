@@ -1,4 +1,4 @@
-import {MessageBody} from "../models/message-types";
+import {MessageBody} from "../models/message-body-models";
 import {MESSAGE_TYPES} from "../models/message-enum";
 
 export function createMessage<T>(type: MESSAGE_TYPES, data: T): MessageBody<T> {

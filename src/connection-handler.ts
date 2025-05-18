@@ -1,11 +1,11 @@
 import {WebSocket, RawData} from 'ws';
-import {MessageBody} from './models/message-types';
+import {MessageBody} from './models/message-body-models';
 import {MESSAGE_TYPES} from './models/message-enum';
-import {CommandHandler} from "./handlers/command-handler";
+import {CommandHandler} from "./command-handler";
 
 const commandHandler = new CommandHandler();
 
-export const handleConnection = (ws: WebSocket): void => {
+export const connectionHandler = (ws: WebSocket): void => {
     ws.on('message', (raw: RawData) => {
         try {
             const message: MessageBody<string> = JSON.parse(raw.toString());
@@ -17,17 +17,25 @@ export const handleConnection = (ws: WebSocket): void => {
                     commandHandler.updateWinners(ws);
                     break;
 
-                case MESSAGE_TYPES.UPDATE_WINNERS:
+                case MESSAGE_TYPES.UPDATE_WINNERS: {
                     commandHandler.updateWinners(ws);
                     break;
+                }
 
-                case MESSAGE_TYPES.CREATE_ROOM:
+                case MESSAGE_TYPES.CREATE_ROOM: {
                     commandHandler.createRoom(ws, message);
                     break;
+                }
 
-                case MESSAGE_TYPES.ADD_USER_TO_ROOM:
+                case MESSAGE_TYPES.ADD_USER_TO_ROOM: {
                     commandHandler.addUserToRoom(ws, message);
                     break;
+                }
+
+                case MESSAGE_TYPES.ADD_SHIPS: {
+                    commandHandler.addShips(message)
+                    break
+                }
 
                 default:
                     console.warn(`Unknown message type: ${message.type}`);

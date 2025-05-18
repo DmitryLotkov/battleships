@@ -1,7 +1,7 @@
 import 'dotenv/config'
 import {httpServer} from "./src/http_server";
 import {WebSocketServer, WebSocket} from "ws";
-import {handleConnection} from "./src/handle-connection";
+import {connectionHandler} from "./src/connection-handler";
 
 const FRONT_PORT = process.env.PORT || 8181
 const SOCKET_PORT = process.env.SOCKET_PORT || 3000
@@ -14,7 +14,7 @@ const wss = new WebSocketServer({ port: Number(SOCKET_PORT) });
 
 wss.on('connection', (ws:WebSocket) => {
     console.log('Client connected');
-    handleConnection(ws);
+    connectionHandler(ws);
 });
 
 process.on('SIGINT', () => {
