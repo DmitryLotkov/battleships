@@ -4,7 +4,7 @@ export interface Client {
     index: number
     wins: number
     name: string
-    ws: WebSocket
+    ws: WebSocket | null
 }
 export interface Room {
     index: number

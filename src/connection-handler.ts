@@ -46,6 +46,11 @@ export const connectionHandler = (ws: WebSocket): void => {
                     break
                 }
 
+                case MESSAGE_TYPES.SINGLE_PLAY: {
+                    commandHandler.singlePlayCommand(ws)
+                    break
+                }
+
                 default:
                     console.warn(`Unknown message type: ${message.type}`);
             }

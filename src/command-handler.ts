@@ -60,7 +60,7 @@ export class CommandHandler {
             ws.send(payload);
         } else {
             this.clients.forEach(client => {
-                if (client.ws.readyState === WebSocket.OPEN) {
+                if (client.ws?.readyState === WebSocket.OPEN) {
                     client.ws.send(payload);
                 }
             });
@@ -130,7 +130,7 @@ export class CommandHandler {
                 idGame: currRoom.index,
                 idPlayer: player.index
             });
-            player.ws.send(JSON.stringify(response));
+            player.ws?.send(JSON.stringify(response));
         })
     }
 
@@ -148,7 +148,7 @@ export class CommandHandler {
         const message = createMessage(MESSAGE_TYPES.UPDATE_ROOM, availableRooms);
 
         this.clients.forEach((client) => {
-            client.ws.send(JSON.stringify(message));
+            client.ws?.send(JSON.stringify(message));
         })
     }
 
@@ -170,7 +170,7 @@ export class CommandHandler {
             if (room.currentTurnIndex === undefined) {
                 room.currentTurnIndex = indexPlayer;
             }
-
+            console.log("addShips")
             const bothReady = room.players.every((player) => room.ships[player.index])
 
             if (bothReady) {
@@ -193,7 +193,7 @@ export class CommandHandler {
                     currentPlayerIndex: currentPlayerIndex
                 })
 
-                player.ws.send(JSON.stringify(request));
+                player.ws?.send(JSON.stringify(request));
             })
 
             this.sendTurnCommandToOneClient(currentWSConnection, currentRoom)
@@ -215,7 +215,7 @@ export class CommandHandler {
 
             try {
                 currentRoom.players.forEach((player) => {
-                    player.ws.send(JSON.stringify(request))
+                    player.ws?.send(JSON.stringify(request))
                 })
 
             } catch (e) {
@@ -321,7 +321,7 @@ export class CommandHandler {
         });
 
         room.players.forEach(player => {
-                player.ws.send(JSON.stringify(attackMessage))
+                player.ws?.send(JSON.stringify(attackMessage))
         });
     }
 
@@ -331,7 +331,7 @@ export class CommandHandler {
         });
 
         room.players.forEach(player => {
-            if (player.ws.readyState === WebSocket.OPEN) {
+            if (player.ws?.readyState === WebSocket.OPEN) {
                 player.ws.send(JSON.stringify(turnMessage));
             }
         });
@@ -398,7 +398,7 @@ export class CommandHandler {
             });
 
             room.players.forEach(player => {
-                if (player.ws.readyState === WebSocket.OPEN) {
+                if (player.ws?.readyState === WebSocket.OPEN) {
                     player.ws.send(JSON.stringify(attackMessage));
                 }
             });
@@ -427,7 +427,7 @@ export class CommandHandler {
         });
 
         room.players.forEach(player => {
-            player.ws.send(JSON.stringify(finishMessage));
+            player.ws?.send(JSON.stringify(finishMessage));
         });
 
         this.updateWinners(ws)
@@ -473,5 +473,37 @@ export class CommandHandler {
         } catch (e) {
             console.error('Error in randomAttackCommand:', e);
         }
+    }
+
+    public singlePlayCommand(ws: WebSocket) {
+        const realPlayer = this.clients.find(c => c.ws === ws);
+        if (!realPlayer) {
+            console.warn('Single play failed: player not found');
+            return;
+        }
+
+        const bot: Client = {
+            index: ++this.clientIndex,
+            name: 'Bot',
+            wins: 0,
+            ws: null
+        };
+
+        const room: Room = {
+            index: ++this.roomIndex,
+            players: [realPlayer, bot],
+            ships: {},
+            hits: {},
+            currentTurnIndex: realPlayer.index
+        };
+
+        this.rooms.push(room);
+
+        const message = createMessage<CreateGameRequestBody>(MESSAGE_TYPES.CREATE_GAME, {
+            idGame: room.index,
+            idPlayer: realPlayer.index
+        });
+
+        realPlayer.ws?.send(JSON.stringify(message));
     }
 }
