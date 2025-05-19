@@ -6,7 +6,13 @@ import {
     UpdateWinnersRequestBody,
     AddShipsResponseBody,
     StartGameRequestBody,
-    CreateGameRequestBody, TurnRequestBody, AttackRequestBody, Coordinates, AttackResponseBody, FinishRequestBody
+    CreateGameRequestBody,
+    TurnRequestBody,
+    AttackRequestBody,
+    Coordinates,
+    AttackResponseBody,
+    FinishRequestBody,
+    RandomAttackRequestBody
 } from './models/message-body-models';
 import {MESSAGE_TYPES} from './models/message-enum';
 import {WebSocket} from 'ws';
@@ -427,5 +433,45 @@ export class CommandHandler {
         this.updateWinners(ws)
 
         return; // завершение игры
+    }
+
+    public randomAttackCommand(ws: WebSocket, messageBody: MessageBody<string>) {
+        try {
+            const { gameId, indexPlayer }: RandomAttackRequestBody = JSON.parse(messageBody.data);
+            const room = this.getRoomById(gameId);
+            if (!room) return;
+
+            const enemy = room.players.find(p => p.index !== indexPlayer);
+            if (!enemy) return;
+
+            const previousHits = room.hits?.[enemy.index] ?? [];
+
+            // Получаем все возможные клетки 10x10
+            const allCoords = Array.from({ length: 10 }, (_, x) =>
+                Array.from({ length: 10 }, (_, y) => ({ x, y }))
+            ).flat();
+
+            const availableCoords = allCoords.filter(({ x, y }) =>
+                !previousHits.some(h => h.x === x && h.y === y)
+            );
+
+            if (availableCoords.length === 0) {
+                console.warn('No more available cells for random attack');
+                return;
+            }
+
+            const { x, y } = availableCoords[Math.floor(Math.random() * availableCoords.length)];
+
+            const fakeMessage: MessageBody<string> = {
+                type: MESSAGE_TYPES.ATTACK,
+                id: 0,
+                data: JSON.stringify({ gameId, x, y, indexPlayer })
+            };
+
+            this.attackCommand(ws, fakeMessage);
+
+        } catch (e) {
+            console.error('Error in randomAttackCommand:', e);
+        }
     }
 }

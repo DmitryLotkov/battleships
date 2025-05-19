@@ -41,6 +41,10 @@ export const connectionHandler = (ws: WebSocket): void => {
                     commandHandler.attackCommand(ws,message)
                     break
                 }
+                case MESSAGE_TYPES.RANDOM_ATTACK: {
+                    commandHandler.randomAttackCommand(ws,message)
+                    break
+                }
 
                 default:
                     console.warn(`Unknown message type: ${message.type}`);
