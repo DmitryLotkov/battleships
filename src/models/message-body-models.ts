@@ -63,3 +63,8 @@ export interface AttackResponseBody {
     currentPlayer: number | string
     status: HitStatusType
 }
+
+export interface RandomAttackRequestBody {
+    gameId: number | string
+    indexPlayer: number | string
+}

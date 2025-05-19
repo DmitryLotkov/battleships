@@ -257,6 +257,10 @@ export class CommandHandler {
                     room.currentTurnIndex = enemy.index; // поменяем очередь хода если промахнулся игрок
                 }
 
+                if (hitStatus === 'killed') {
+                    this.makeKilledShipBorderCellsMissed(room, indexPlayer, enemy, { x, y });
+                }
+
                 this.sendTurnCommandToBothClients(room)
 
             } catch (e) {
@@ -316,5 +320,73 @@ export class CommandHandler {
                 player.ws.send(JSON.stringify(turnMessage));
             }
         });
+    }
+
+    private getShipBorderCells(ship: Ship): Coordinates[] {
+        const shipCells = this.getShipCells(ship);
+        const shipCellSet = new Set(shipCells.map(c => `${c.x},${c.y}`));
+
+        const neighborOffsets = [-1, 0, 1];
+        const allBorders = shipCells.flatMap(({ x, y }) =>
+            neighborOffsets.flatMap(dx =>
+                neighborOffsets.map(dy => ({ x: x + dx, y: y + dy }))
+            )
+        );
+
+        const uniqueBorders = Array.from(
+            new Set(
+                allBorders
+                    .filter(({ x, y }) => !shipCellSet.has(`${x},${y}`))  // исключаем сам корабль
+                    .map(({ x, y }) => `${x},${y}`)
+            )
+        );
+
+        return uniqueBorders.map(str => {
+            const [x, y] = str.split(',').map(Number);
+            return { x, y };
+        });
+    }
+
+    private makeKilledShipBorderCellsMissed(
+        room: Room,
+        shooterIndex: number | string,
+        enemy: Client,
+        shootCoords: Coordinates
+    ) {
+        if (!room.hits) return;
+
+        const killedShip = room.ships[enemy.index].find(ship =>
+            this.getShipCells(ship).some(cell =>
+                cell.x === shootCoords.x && cell.y === shootCoords.y
+            )
+        );
+
+        if (!killedShip) return;
+
+        const borderCells = this.getShipBorderCells(killedShip);
+        const existingHits = room.hits[enemy.index];
+
+        const newMisses: HitItem[] = borderCells
+            .filter(({ x, y }) =>
+                !existingHits.some(hit => hit.x === x && hit.y === y)
+            )
+            .map(({ x, y }) => ({ x, y, status: 'miss' }));
+
+        room.hits[enemy.index].push(...newMisses);
+
+
+        newMisses.forEach((miss) => {
+            const attackMessage = createMessage<AttackResponseBody>(MESSAGE_TYPES.ATTACK, {
+                position: { x: miss.x, y: miss.y },
+                currentPlayer: shooterIndex,
+                status: 'miss'
+            });
+
+            room.players.forEach(player => {
+                if (player.ws.readyState === WebSocket.OPEN) {
+                    player.ws.send(JSON.stringify(attackMessage));
+                }
+            });
+        })
     }
 }
