@@ -68,3 +68,7 @@ export interface RandomAttackRequestBody {
     gameId: number | string
     indexPlayer: number | string
 }
+
+export interface FinishRequestBody {
+    winPlayer: number | string
+}

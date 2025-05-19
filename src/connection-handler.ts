@@ -38,7 +38,7 @@ export const connectionHandler = (ws: WebSocket): void => {
                 }
 
                 case MESSAGE_TYPES.ATTACK: {
-                    commandHandler.attackCommand(message)
+                    commandHandler.attackCommand(ws,message)
                     break
                 }
 

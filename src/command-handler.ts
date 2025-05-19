@@ -6,7 +6,7 @@ import {
     UpdateWinnersRequestBody,
     AddShipsResponseBody,
     StartGameRequestBody,
-    CreateGameRequestBody, TurnRequestBody, AttackRequestBody, Coordinates, AttackResponseBody
+    CreateGameRequestBody, TurnRequestBody, AttackRequestBody, Coordinates, AttackResponseBody, FinishRequestBody
 } from './models/message-body-models';
 import {MESSAGE_TYPES} from './models/message-enum';
 import {WebSocket} from 'ws';
@@ -220,7 +220,7 @@ export class CommandHandler {
         }
     }
 
-    public attackCommand(messageBody: MessageBody<string>) {
+    public attackCommand(ws: WebSocket, messageBody: MessageBody<string>) {
             try {
                 const {gameId, x, y, indexPlayer }: AttackRequestBody = JSON.parse(messageBody.data);
                 const room = this.getRoomById(gameId);
@@ -230,7 +230,12 @@ export class CommandHandler {
                 }
 
                 const currentPlayerIndex = indexPlayer;
-                const enemy = room.players.find((player) => player.index !== currentPlayerIndex);
+
+                if (room.currentTurnIndex !== currentPlayerIndex) { // Запрет хода не по очереди
+                    return;
+                }
+
+                    const enemy = room.players.find((player) => player.index !== currentPlayerIndex);
                 if (!enemy) {
                     return;
                 }
@@ -259,6 +264,10 @@ export class CommandHandler {
 
                 if (hitStatus === 'killed') {
                     this.makeKilledShipBorderCellsMissed(room, indexPlayer, enemy, { x, y });
+                }
+
+                if (this.areAllShipsDestroyed(room, enemy)) {
+                    this.finishGame(ws, room, indexPlayer)
                 }
 
                 this.sendTurnCommandToBothClients(room)
@@ -388,5 +397,35 @@ export class CommandHandler {
                 }
             });
         })
+    }
+
+    private areAllShipsDestroyed(room: Room, enemy: Client): boolean {
+        const hits = room.hits?.[enemy.index] ?? [];
+        const hitCells = hits.map(h => `${h.x},${h.y}`);
+
+        const allShipCells = room.ships[enemy.index]
+            .flatMap(ship => this.getShipCells(ship))
+            .map(cell => `${cell.x},${cell.y}`);
+
+        return allShipCells.every(cell => hitCells.includes(cell));
+    }
+
+    private finishGame(ws: WebSocket, room: Room, indexPlayer: string | number) {
+        const winner = room.players.find(p => p.index === indexPlayer);
+        if (winner) {
+            winner.wins += 1;
+        }
+
+        const finishMessage = createMessage<FinishRequestBody>(MESSAGE_TYPES.FINISH, {
+            winPlayer: indexPlayer
+        });
+
+        room.players.forEach(player => {
+            player.ws.send(JSON.stringify(finishMessage));
+        });
+
+        this.updateWinners(ws)
+
+        return; // завершение игры
     }
 }
