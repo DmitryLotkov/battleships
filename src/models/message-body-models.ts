@@ -1,5 +1,5 @@
 import {MESSAGE_TYPES} from "./message-enum";
-import { Ship} from "./database-models";
+import {Ship, HitStatusType} from "./database-models";
 
 export interface MessageBody <T> {
     type: MESSAGE_TYPES
@@ -39,6 +39,11 @@ export interface StartGameRequestBody {
     currentPlayerIndex: number | string
 }
 
+export interface Coordinates {
+    x: number
+    y: number
+}
+
 export interface CreateGameRequestBody {
     idGame: string | number
     idPlayer: string | number
@@ -46,4 +51,15 @@ export interface CreateGameRequestBody {
 
 export interface TurnRequestBody {
     currentPlayer: number | string
+}
+
+export interface AttackRequestBody extends Coordinates {
+    gameId: number | string
+    indexPlayer: number | string
+}
+
+export interface AttackResponseBody {
+    position: Coordinates
+    currentPlayer: number | string
+    status: HitStatusType
 }

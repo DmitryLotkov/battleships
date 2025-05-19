@@ -6,11 +6,11 @@ import {
     UpdateWinnersRequestBody,
     AddShipsResponseBody,
     StartGameRequestBody,
-    CreateGameRequestBody, TurnRequestBody
+    CreateGameRequestBody, TurnRequestBody, AttackRequestBody, Coordinates, AttackResponseBody
 } from './models/message-body-models';
 import {MESSAGE_TYPES} from './models/message-enum';
 import {WebSocket} from 'ws';
-import {Client, Room} from './models/database-models';
+import {Client, Room, Ship, HitStatusType, HitItem} from './models/database-models';
 import {createMessage} from './utils/create-message';
 
 export class CommandHandler {
@@ -190,7 +190,7 @@ export class CommandHandler {
                 player.ws.send(JSON.stringify(request));
             })
 
-            this.turn(currentWSConnection, currentRoom)
+            this.sendTurnCommandToOneClient(currentWSConnection, currentRoom)
         } catch (e) {
             console.log('Error when start the game', e)
         }
@@ -200,7 +200,7 @@ export class CommandHandler {
         return this.rooms.find(r => r.index === id);
     }
 
-    public turn(ws: WebSocket, currentRoom: Room) {
+    public sendTurnCommandToOneClient(ws: WebSocket, currentRoom: Room) {
         const client = this.clients.find(c => c.ws === ws);
         if (client) {
             const request = createMessage<TurnRequestBody>(MESSAGE_TYPES.TURN, {
@@ -218,5 +218,103 @@ export class CommandHandler {
         } else {
             console.log('Client not found')
         }
+    }
+
+    public attackCommand(messageBody: MessageBody<string>) {
+            try {
+                const {gameId, x, y, indexPlayer }: AttackRequestBody = JSON.parse(messageBody.data);
+                const room = this.getRoomById(gameId);
+
+                if (!room) {
+                    return;
+                }
+
+                const currentPlayerIndex = indexPlayer;
+                const enemy = room.players.find((player) => player.index !== currentPlayerIndex);
+                if (!enemy) {
+                    return;
+                }
+
+                const previousHits = room.hits?.[enemy.index] ?? [];
+                const updatedHits = [...previousHits, { x, y, status: 'shot' }] satisfies HitItem[];
+
+                if (previousHits.some(h => h.x === x && h.y === y)) {
+                    // не даем стрелять в ту же клетку
+                    return;
+                }
+
+                const hitStatus = this.checkEnemyShipForHits(room, enemy, { x, y }, updatedHits);
+
+                room.hits = room.hits || {};
+                room.hits[enemy.index] = [
+                    ...previousHits,
+                    { x, y, status: hitStatus }
+                ];
+
+                this.sendAttackMessage(room, { x, y }, currentPlayerIndex, hitStatus)
+
+                if (hitStatus === 'miss') {
+                    room.currentTurnIndex = enemy.index; // поменяем очередь хода если промахнулся игрок
+                }
+
+                this.sendTurnCommandToBothClients(room)
+
+            } catch (e) {
+                console.error('Error in attackCommand:', e);
+            }
+    }
+
+    private getShipCells(ship: Ship): Coordinates[] {
+        return Array.from({ length : ship.length }, (_, i) => ({
+            x: ship.direction ? ship.position.x : ship.position.x + i,
+            y: ship.direction ? ship.position.y + i : ship.position.y,
+        }))
+    }
+
+    private checkEnemyShipForHits(
+        room: Room,
+        enemy: Client,
+        shotCoords: Coordinates,
+        hits: HitItem[]
+    ): HitStatusType {
+        const enemyShips = room.ships[enemy.index];
+
+        for (const ship of enemyShips) {
+            const shipCells = this.getShipCells(ship);
+            const hit = shipCells.find(cell => cell.x === shotCoords.x && cell.y === shotCoords.y);
+
+            if (hit) {
+                const isKilled = shipCells.every(cell =>
+                    hits.some(h => h.x === cell.x && h.y === cell.y)
+                );
+                return isKilled ? 'killed' : 'shot';
+            }
+        }
+
+        return 'miss';
+    }
+
+    private sendAttackMessage(room: Room, shootCoordinates: Coordinates, currentPlayerIndex: number | string, hitStatus: HitStatusType) {
+        const attackMessage = createMessage<AttackResponseBody>(MESSAGE_TYPES.ATTACK, {
+            position: shootCoordinates,
+            currentPlayer: currentPlayerIndex,
+            status: hitStatus
+        });
+
+        room.players.forEach(player => {
+                player.ws.send(JSON.stringify(attackMessage))
+        });
+    }
+
+    private sendTurnCommandToBothClients(room: Room) {
+        const turnMessage = createMessage(MESSAGE_TYPES.TURN, {
+            currentPlayer: room.currentTurnIndex
+        });
+
+        room.players.forEach(player => {
+            if (player.ws.readyState === WebSocket.OPEN) {
+                player.ws.send(JSON.stringify(turnMessage));
+            }
+        });
     }
 }

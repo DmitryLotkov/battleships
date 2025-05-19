@@ -37,6 +37,11 @@ export const connectionHandler = (ws: WebSocket): void => {
                     break
                 }
 
+                case MESSAGE_TYPES.ATTACK: {
+                    commandHandler.attackCommand(message)
+                    break
+                }
+
                 default:
                     console.warn(`Unknown message type: ${message.type}`);
             }
